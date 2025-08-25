@@ -1,0 +1,25 @@
+version: "3"
+services:
+
+  django_app:
+    build: .
+    volumes:
+      - static:/code/static
+      - .:/code
+
+  nginx:
+    image: nginx:1.13
+    ports:
+    - 443:443
+    volumes:
+      - ./config/nginx/conf.d:/etc/nginx/conf.d
+      - static:/code/static
+      - /home/nginx/frontapps:/usr/share/nginx/html
+      - /home/nginx/cert:/etc/nginx/cert
+    depends_on:
+      - django_app
+
+volumes:
+  .:
+  # postgres_data:
+  static:
