@@ -1781,6 +1781,7 @@
     { "model": "api.SubCategories", "pk": 226, "fields": { "created_at": "2020-07-17", "name_subcategory": "Acolilladoras ", "category_id": "20" } },
     { "model": "api.SubCategories", "pk": 227, "fields": { "created_at": "2020-07-17", "name_subcategory": "Sierras ", "category_id": "20" } },
     { "model": "api.SubCategories", "pk": 228, "fields": { "created_at": "2020-07-17", "name_subcategory": "Tronzadoras ", "category_id": "20" } },
+    { "model": "api.SubCategories", "pk": 229, "fields": { "created_at": "2020-07-17", "name_subcategory": "General ", "category_id": "21" } },
 
     {
         "model": "api.TypePercentage",

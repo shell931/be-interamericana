@@ -181,7 +181,7 @@ class CategoriesSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Categories
-        fields = ("id", "name_category", "rel_categories", "icon")
+        fields = ("id", "name_category", "rel_categories", "icon", "active")
 
 
 class AdminProductSerializer(serializers.Serializer):

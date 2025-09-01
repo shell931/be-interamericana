@@ -382,6 +382,7 @@ class Categories(models.Model):
                                   auto_now_add=True)
     name_category = models.CharField(max_length=100, blank=False, null=False)
     icon = models.CharField(max_length=100, blank=True, null=True)
+    active = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = 'Category'
