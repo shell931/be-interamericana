@@ -4,6 +4,7 @@ from rest_framework import routers
 from django.conf.urls import include
 from .views import *
 from .views.invoice import PaymentWebhookViewSet
+from .views.catalog_feed import meta_catalog_feed, meta_catalog_image
 from django.conf.urls import url
 from django.views.generic import TemplateView
 
@@ -242,6 +243,9 @@ router.register('get_binnacle_number', GetListBinnaclesNumber,
 urlpatterns = [
     path('', include(router.urls)),
     path('payment-webhook/', PaymentWebhookViewSet.as_view({'post': 'create'}), name='payment_webhook'),
+    path('feed/meta-catalog.xml', meta_catalog_feed, name='meta_catalog_feed'),
+    path('feed/img/<int:product_id>.jpg', meta_catalog_image, name='meta_catalog_image'),
+    path('feed/img/<int:product_id>/<int:image_id>.jpg', meta_catalog_image, name='meta_catalog_gallery_image'),
     path('password_reset_market/', include('django_rest_passwordreset.urls',
                                            namespace='password_reset_market')),
 ]
