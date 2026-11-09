@@ -81,29 +81,47 @@ class MetaCatalogFeedTests(TestCase):
         self.assertEqual(item.find(G + 'sale_price').text, '3000.00 COP')
         self.assertEqual(item.find(G + 'availability').text, 'out of stock')
 
-    @mock.patch('api.views.catalog_feed.requests.get')
-    def test_image_is_converted_to_jpeg_and_upscaled(self, get):
-        get.return_value = mock.Mock(content=_webp_bytes(), raise_for_status=lambda: None)
+    @mock.patch('api.views.catalog_feed._read_from_bucket')
+    def test_image_is_converted_to_jpeg_and_upscaled(self, read):
+        read.return_value = _webp_bytes()
         response = self.client.get('/api/feed/img/%d.jpg' % self.product.id_product)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response['Content-Type'], 'image/jpeg')
         img = PILImage.open(io.BytesIO(response.content))
         self.assertEqual(img.format, 'JPEG')
         self.assertGreaterEqual(min(img.size), 500)
-        get.assert_called_once_with('https://market-docus-v2.s3.us-east-2.amazonaws.com/6-229-1.webp', timeout=15)
+        read.assert_called_once_with('6-229-1.webp')
 
         self.client.get('/api/feed/img/%d.jpg' % self.product.id_product)
-        get.assert_called_once()  # second hit served from cache
+        read.assert_called_once()  # second hit served from cache
 
-    @mock.patch('api.views.catalog_feed.requests.get')
-    def test_gallery_image(self, get):
-        get.return_value = mock.Mock(content=_webp_bytes(mode='RGB'), raise_for_status=lambda: None)
+    @mock.patch('api.views.catalog_feed._read_from_bucket')
+    def test_gallery_image(self, read):
+        read.return_value = _webp_bytes(mode='RGB')
         response = self.client.get('/api/feed/img/%d/%d.jpg' % (self.product.id_product, self.gallery.id))
         self.assertEqual(response.status_code, 200)
-        get.assert_called_once_with('https://market-docus-v2.s3.us-east-2.amazonaws.com/6-229-2.webp', timeout=15)
+        read.assert_called_once_with('6-229-2.webp')
 
-    @mock.patch('api.views.catalog_feed.requests.get')
-    def test_image_endpoint_never_exposes_non_public_files(self, get):
+    def test_reads_through_the_images_model_storage(self):
+        storage = mock.Mock()
+        storage.open.return_value.__enter__ = lambda s: io.BytesIO(_webp_bytes(mode='RGB'))
+        storage.open.return_value.__exit__ = lambda s, *a: False
+        field = Images._meta.get_field('image')
+        with mock.patch.object(field, 'storage', storage):
+            response = self.client.get('/api/feed/img/%d.jpg' % self.product.id_product)
+        self.assertEqual(response.status_code, 200)
+        storage.open.assert_called_once_with('6-229-1.webp', 'rb')
+
+    @mock.patch('api.views.catalog_feed._read_from_bucket',
+                return_value=b'<?xml version="1.0"?><Error><Code>PermanentRedirect</Code></Error>')
+    def test_non_image_payload_is_404(self, read):
+        # Regression: wrong-region S3 URL returned a 301 XML body instead of the image
+        with self.assertLogs('api.views.catalog_feed', level='ERROR'):
+            response = self.client.get('/api/feed/img/%d.jpg' % self.product.id_product)
+        self.assertEqual(response.status_code, 404)
+
+    @mock.patch('api.views.catalog_feed._read_from_bucket')
+    def test_image_endpoint_never_exposes_non_public_files(self, read):
         for url in ('/api/feed/img/%d.jpg' % self.unpublished.id_product,
                     '/api/feed/img/%d.jpg' % self.not_approved.id_product,
                     '/api/feed/img/%d.jpg' % self.no_image.id_product,
@@ -111,10 +129,10 @@ class MetaCatalogFeedTests(TestCase):
                     # gallery image that belongs to another product
                     '/api/feed/img/%d/%d.jpg' % (self.on_sale.id_product, self.gallery.id)):
             self.assertEqual(self.client.get(url).status_code, 404, url)
-        get.assert_not_called()
+        read.assert_not_called()
 
-    @mock.patch('api.views.catalog_feed.requests.get', side_effect=Exception('s3 down'))
-    def test_image_upstream_failure_is_404(self, get):
+    @mock.patch('api.views.catalog_feed._read_from_bucket', side_effect=Exception('s3 down'))
+    def test_image_upstream_failure_is_404(self, read):
         with self.assertLogs('api.views.catalog_feed', level='ERROR'):
             response = self.client.get('/api/feed/img/%d.jpg' % self.product.id_product)
         self.assertEqual(response.status_code, 404)
