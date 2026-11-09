@@ -17,9 +17,7 @@ import logging
 import xml.etree.ElementTree as ET
 from decimal import Decimal
 
-import requests
 from PIL import Image as PILImage
-from django.conf import settings
 from django.core.cache import cache
 from django.http import Http404, HttpResponse
 from django.utils.html import strip_tags
@@ -49,11 +47,16 @@ def _public_products():
     return Products.objects.filter(published=True, state_id=2)
 
 
-def _bucket_url(path):
-    path = str(path or '')
-    if path.startswith('http://') or path.startswith('https://'):
-        return path
-    return settings.AWS_URL_BUCKET_DOCS + path.lstrip('/')
+def _read_from_bucket(key):
+    """Read through the same S3 storage the Images model uses.
+
+    Don't build URLs from settings.AWS_URL_BUCKET_DOCS: in prod it points to
+    the wrong region (S3 answers 301 + XML), and the storage also keeps
+    working if the bucket ever becomes private.
+    """
+    storage = Images._meta.get_field('image').storage
+    with storage.open(key, 'rb') as f:
+        return f.read()
 
 
 def _price(value):
@@ -178,9 +181,7 @@ def meta_catalog_image(request, product_id, image_id=None):
     jpeg = cache.get(cache_key)
     if jpeg is None:
         try:
-            resp = requests.get(_bucket_url(key), timeout=15)
-            resp.raise_for_status()
-            jpeg = _to_jpeg(resp.content)
+            jpeg = _to_jpeg(_read_from_bucket(key))
         except Exception:
             logger.exception('Meta feed image conversion failed for %s', key)
             raise Http404
